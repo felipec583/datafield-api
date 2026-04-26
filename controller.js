@@ -145,6 +145,7 @@ export async function getProjectInfo(req, res, next) {
 
     res.status(200).json(response);
   } catch (err) {
+    console.log(`error project info ${err}`);
     next(err);
   }
 }
