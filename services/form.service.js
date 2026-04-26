@@ -7,6 +7,12 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+async function fetchImageAsBuffer(url) {
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
 export async function getReviewById(id) {
   const { rows } = await pool.query(
     `SELECT review.*, 
@@ -18,7 +24,7 @@ export async function getReviewById(id) {
      JOIN member m ON m.id = review.created_by 
      JOIN project p ON p.id = review.project_id 
      WHERE review.id = $1`,
-    [id]
+    [id],
   );
 
   const data = rows[0];
@@ -26,7 +32,7 @@ export async function getReviewById(id) {
 
   const { rows: photos } = await pool.query(
     "SELECT id, filename, path, description, created_at FROM review_photos WHERE review_id = $1 ORDER BY created_at",
-    [id]
+    [id],
   );
 
   return {
@@ -94,22 +100,36 @@ export async function generateExcel(review) {
 
   const addSection = (title, data) => {
     const row = sheet.addRow([title, ""]);
-    row.getCell(1).font = { bold: true, size: 11, color: { argb: primaryColor } };
-    row.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "DBF1FE" } };
+    row.getCell(1).font = {
+      bold: true,
+      size: 11,
+      color: { argb: primaryColor },
+    };
+    row.getCell(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "DBF1FE" },
+    };
     sheet.mergeCells(row.getCell(1).address, row.getCell(2).address);
     row.height = 22;
 
     if (Array.isArray(data)) {
       data.forEach(([label, value]) => {
         const labelRow = sheet.addRow([label, value || "-"]);
-        labelRow.getCell(1).style = { ...cellStyle, font: { bold: true, size: 10 } };
+        labelRow.getCell(1).style = {
+          ...cellStyle,
+          font: { bold: true, size: 10 },
+        };
         labelRow.getCell(2).style = cellStyle;
         labelRow.height = 30;
       });
     } else if (typeof data === "object" && data !== null) {
       Object.entries(data).forEach(([label, value]) => {
         const labelRow = sheet.addRow([label, value || "-"]);
-        labelRow.getCell(1).style = { ...cellStyle, font: { bold: true, size: 10 } };
+        labelRow.getCell(1).style = {
+          ...cellStyle,
+          font: { bold: true, size: 10 },
+        };
         labelRow.getCell(2).style = cellStyle;
         labelRow.height = 30;
       });
@@ -124,7 +144,12 @@ export async function generateExcel(review) {
     ["Proyecto", review.project?.name || "-"],
     ["Contrato", review.project?.projectContract || "-"],
     ["Cliente", review.project?.clientEmail || "-"],
-    ["Fecha", review.reviewDate ? new Date(review.reviewDate).toLocaleDateString("es-CL") : "-"],
+    [
+      "Fecha",
+      review.reviewDate
+        ? new Date(review.reviewDate).toLocaleDateString("es-CL")
+        : "-",
+    ],
     ["Área", review.project?.area || "-"],
     ["Ubicación", review.project?.workLocation || "-"],
   ]);
@@ -155,7 +180,9 @@ export async function generateExcel(review) {
   ]);
 
   const statusMap = { open: "Abierta", closed: "Cerrada", viewed: "Observada" };
-  addSection("6. ESTADO DE LIBERACIÓN", [["Estado", statusMap[review.reviewStatus] || review.reviewStatus]]);
+  addSection("6. ESTADO DE LIBERACIÓN", [
+    ["Estado", statusMap[review.reviewStatus] || review.reviewStatus],
+  ]);
 
   if (review.photos && review.photos.length > 0) {
     addSection("7. REGISTRO FOTOGRÁFICO", [
@@ -180,7 +207,7 @@ export async function generateExcel(review) {
 }
 
 export async function generatePdf(review) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
       const doc = new PDFDocument({ margin: 30, size: "A4" });
       const chunks = [];
@@ -194,9 +221,21 @@ export async function generatePdf(review) {
       const darkBg = "#002053";
       const textColor = "#071E27";
 
-      doc.fontSize(18).fillColor(primaryColor).font("Helvetica-Bold").text("DataField", 30, 30);
-      doc.fontSize(14).fillColor(textColor).font("Helvetica").text("Informe de Inspección", 30, 50);
-      doc.fontSize(10).fillColor(primaryColor).font("Helvetica-Bold").text(`Código: ${review.docCode || "-"}`, 30, 68);
+      doc
+        .fontSize(18)
+        .fillColor(primaryColor)
+        .font("Helvetica-Bold")
+        .text("DataField", 30, 30);
+      doc
+        .fontSize(14)
+        .fillColor(textColor)
+        .font("Helvetica")
+        .text("Informe de Inspección", 30, 50);
+      doc
+        .fontSize(10)
+        .fillColor(primaryColor)
+        .font("Helvetica-Bold")
+        .text(`Código: ${review.docCode || "-"}`, 30, 68);
 
       let y = 90;
 
@@ -207,7 +246,11 @@ export async function generatePdf(review) {
         }
 
         doc.rect(30, y, 535, 20).fill(darkBg);
-        doc.fontSize(10).fillColor("#FFFFFF").font("Helvetica-Bold").text(title, 35, y + 5);
+        doc
+          .fontSize(10)
+          .fillColor("#FFFFFF")
+          .font("Helvetica-Bold")
+          .text(title, 35, y + 5);
         y += 25;
 
         if (Array.isArray(data)) {
@@ -217,64 +260,101 @@ export async function generatePdf(review) {
               y = 30;
             }
             doc.rect(30, y, 535, 18).fill(lightBg);
-            doc.fontSize(9).fillColor(textColor).font("Helvetica-Bold").text(label, 35, y + 4, { width: 120 });
-            doc.font("Helvetica").text(value || "-", 160, y + 4, { width: 400 });
+            doc
+              .fontSize(9)
+              .fillColor(textColor)
+              .font("Helvetica-Bold")
+              .text(label, 35, y + 4, { width: 120 });
+            doc
+              .font("Helvetica")
+              .text(value || "-", 160, y + 4, { width: 400 });
             y += 18;
           });
         }
         y += 10;
       };
 
-      const addPhotoSection = (photos) => {
+      const addPhotoSection = async (photos) => {
         if (!photos || photos.length === 0) return;
-        
-        const uploadsDir = path.join(__dirname, "..", "uploads");
-        
+
         if (y > 650) {
           doc.addPage();
           y = 30;
         }
-        
+
         doc.rect(30, y, 535, 20).fill(darkBg);
-        doc.fontSize(10).fillColor("#FFFFFF").font("Helvetica-Bold").text("7. REGISTRO FOTOGRÁFICO", 35, y + 5);
+        doc
+          .fontSize(10)
+          .fillColor("#FFFFFF")
+          .font("Helvetica-Bold")
+          .text("7. REGISTRO FOTOGRÁFICO", 35, y + 5);
         y += 25;
-        
-        photos.forEach((photo, index) => {
+
+        for (const photo of photos) {
           if (y > 580) {
             doc.addPage();
             y = 30;
           }
-          
-          const photoPath = path.join(uploadsDir, photo.path);
-          
-          doc.fontSize(9).fillColor(textColor).font("Helvetica-Bold").text(`Foto ${index + 1}:`, 35, y + 4);
+
+          const photoPath = photo.path;
+
+          doc
+            .fontSize(9)
+            .fillColor(textColor)
+            .font("Helvetica-Bold")
+            .text(`Foto:`, 35, y + 4);
           y += 18;
-          
+
           if (photo.description) {
-            doc.fontSize(8).fillColor(textColor).font("Helvetica").text(photo.description, 35, y, { width: 500 });
+            doc
+              .fontSize(8)
+              .fillColor(textColor)
+              .font("Helvetica")
+              .text(photo.description, 35, y, { width: 500 });
             y += 14;
           }
-          
-          if (fs.existsSync(photoPath)) {
+
+          const isUrl = photoPath.startsWith("http");
+
+          if (isUrl) {
+            try {
+              const imgBuffer = await fetchImageAsBuffer(photoPath);
+              doc.image(imgBuffer, 35, y, { fit: [200, 150], align: "center" });
+              y += 155;
+            } catch (imgErr) {
+              doc
+                .fontSize(8)
+                .fillColor("#73777E")
+                .text("[Imagen no disponible]", 35, y);
+              y += 20;
+            }
+          } else if (fs.existsSync(photoPath)) {
             try {
               doc.image(photoPath, 35, y, { fit: [200, 150], align: "center" });
               y += 155;
             } catch (imgErr) {
-              doc.fontSize(8).fillColor("#73777E").text("[Imagen no disponible]", 35, y);
+              doc
+                .fontSize(8)
+                .fillColor("#73777E")
+                .text("[Imagen no disponible]", 35, y);
               y += 20;
             }
           } else {
-            doc.fontSize(8).fillColor("#73777E").text("[Imagen no encontrada]", 35, y);
+            doc
+              .fontSize(8)
+              .fillColor("#73777E")
+              .text("[Imagen no encontrada]", 35, y);
             y += 20;
           }
-          
+
           y += 10;
-        });
-        
+        }
+
         y += 5;
       };
 
-      const formatDate = (date) => (date ? new Date(date).toLocaleDateString("es-CL") : "-");
+      const formatDate = (date) =>
+        date ? new Date(date).toLocaleDateString("es-CL") : "-";
       const yesNo = (val) => (val ? "Sí" : "No");
 
       addSection("1. IDENTIFICACIÓN DEL PROYECTO", [
@@ -311,12 +391,16 @@ export async function generatePdf(review) {
         ["Acciones Correctivas", review.correctiveActions || "-"],
       ]);
 
-      const statusMap = { open: "Abierta", closed: "Cerrada", viewed: "Observada" };
+      const statusMap = {
+        open: "Abierta",
+        closed: "Cerrada",
+        viewed: "Observada",
+      };
       addSection("6. ESTADO DE LIBERACIÓN", [
         ["Estado", statusMap[review.reviewStatus] || review.reviewStatus],
       ]);
 
-      addPhotoSection(review.photos);
+await   addPhotoSection(review.photos);
 
       addSection("8. COMENTARIOS", [["Comentarios", review.comments || "-"]]);
 
@@ -329,7 +413,10 @@ export async function generatePdf(review) {
         ["Cliente", review.clientName || "-"],
       ]);
 
-      doc.fontSize(8).fillColor("#73777E").text(`ID: ${review.id}`, 30, doc.page.height - 30);
+      doc
+        .fontSize(8)
+        .fillColor("#73777E")
+        .text(`ID: ${review.id}`, 30, doc.page.height - 30);
 
       doc.end();
     } catch (err) {
@@ -346,10 +433,19 @@ export async function exportReview(id, format) {
 
   if (format === "excel") {
     const buffer = await generateExcel(review);
-    return { buffer, filename: `informe-${review.docCode || id}.xlsx`, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+    return {
+      buffer,
+      filename: `informe-${review.docCode || id}.xlsx`,
+      contentType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    };
   } else if (format === "pdf") {
     const buffer = await generatePdf(review);
-    return { buffer, filename: `informe-${review.docCode || id}.pdf`, contentType: "application/pdf" };
+    return {
+      buffer,
+      filename: `informe-${review.docCode || id}.pdf`,
+      contentType: "application/pdf",
+    };
   } else {
     throw new Error("Invalid format. Use 'pdf' or 'excel'.");
   }
@@ -358,7 +454,7 @@ export async function exportReview(id, format) {
 export async function getReviewPhotos(reviewId) {
   const { rows } = await pool.query(
     "SELECT id, filename, path, description, created_at FROM review_photos WHERE review_id = $1 ORDER BY created_at",
-    [reviewId]
+    [reviewId],
   );
   return rows;
 }
@@ -370,10 +466,10 @@ export async function saveReviewPhoto(reviewId, filename, description) {
   }
   const relativePath = path.join(String(reviewId), filename);
   const fullPath = path.join(__dirname, "..", "uploads", relativePath);
-  
+
   const { rows } = await pool.query(
     "INSERT INTO review_photos (review_id, filename, path, description) VALUES ($1, $2, $3, $4) RETURNING *",
-    [reviewId, filename, relativePath, description]
+    [reviewId, filename, relativePath, description],
   );
   return rows[0];
 }
@@ -398,8 +494,8 @@ export async function getReviewsList() {
     JOIN project p ON p.id = r.project_id
     ORDER BY r.created_at DESC
   `);
-  
-  return rows.map(r => ({
+
+  return rows.map((r) => ({
     id: r.id,
     docCode: r.doc_code,
     reviewDate: r.review_date,
@@ -412,20 +508,20 @@ export async function getReviewsList() {
 export async function deleteReview(id) {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    
+    await client.query("BEGIN");
+
     const uploadsDir = path.join(__dirname, "..", "uploads", String(id));
     if (fs.existsSync(uploadsDir)) {
       fs.rmSync(uploadsDir, { recursive: true, force: true });
     }
-    
-    await client.query('DELETE FROM review_photos WHERE review_id = $1', [id]);
-    await client.query('DELETE FROM review WHERE id = $1', [id]);
-    
-    await client.query('COMMIT');
+
+    await client.query("DELETE FROM review_photos WHERE review_id = $1", [id]);
+    await client.query("DELETE FROM review WHERE id = $1", [id]);
+
+    await client.query("COMMIT");
     return true;
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();

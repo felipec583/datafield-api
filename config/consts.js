@@ -19,3 +19,8 @@ export const EMAIL_CONFIG = {
     password: process.env.MAIL_PASS,
     from: process.env.MAIL_FROM || 'DataField <onboarding@resend.dev>'
 }
+export const CLOUDINARY_CONFIG = {
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+}
