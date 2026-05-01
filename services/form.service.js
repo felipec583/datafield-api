@@ -400,7 +400,7 @@ export async function generatePdf(review) {
         ["Estado", statusMap[review.reviewStatus] || review.reviewStatus],
       ]);
 
-await   addPhotoSection(review.photos);
+    await addPhotoSection(review.photos);
 
       addSection("8. COMENTARIOS", [["Comentarios", review.comments || "-"]]);
 

@@ -1,3 +1,4 @@
+import morgan from "morgan";
 import express from "express";
 import cors from "cors";
 import path from "path";
@@ -11,6 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 app.use(cors());
 app.use(express.json());
+app.use(morgan("combined"));
 
 const uploadsDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) {
@@ -29,5 +31,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Running on  ${PORT}`);
+  console.log(`Running on ${PORT}`);
 });

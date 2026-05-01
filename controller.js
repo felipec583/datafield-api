@@ -89,26 +89,20 @@ export async function createReview(req, res, next) {
         1,
         1,
         data.docCode,
-
         data.reviewDate,
         data.responsible,
-
         data.normativaAsmeB313,
         data.normativaAsmeB314,
         data.normativaApi650,
         data.normativaApi1104,
         data.normativaAwsD11,
-
         data.technicalSpec,
         data.drawings,
-
         data.deviationDescription,
         data.correctiveActions,
-
         dbReviewStatus,
         data.comments,
         data.conclusion,
-
         data.inspectorName,
         data.jtSupName,
         data.adcName,
@@ -145,7 +139,6 @@ export async function getProjectInfo(req, res, next) {
 
     res.status(200).json(response);
   } catch (err) {
-    console.log(`error project info ${err}`);
     next(err);
   }
 }
@@ -285,9 +278,7 @@ export async function uploadPhotoController(req, res, next) {
       res.status(200).json({ message: "Fotos guardadas", photos: savedPhotos });
     });
   } catch (err) {
-    console.error(`[Upload photos] Error:${error}`);
-
-    res.status(500).json({ error: "Error al subir fotos" });
+    next(err);
   }
 }
 
@@ -300,8 +291,7 @@ export async function getPhotosController(req, res, next) {
     );
     res.status(200).json({ photos: rows });
   } catch (err) {
-    console.error("Error getting photos:", err);
-    res.status(500).json({ error: "Error al obtener fotos" });
+    next(err);
   }
 }
 
@@ -310,10 +300,7 @@ export async function getReviewsListController(req, res, next) {
     const reviews = await getReviewsList();
     res.status(200).json({ reviews });
   } catch (err) {
-    console.error(`[ReviewList] Error:${error}`);
-    res
-      .status(500)
-      .json({ error: "Error al obtener la lista de inspecciones" });
+    next(err);
   }
 }
 
@@ -323,7 +310,6 @@ export async function deleteReviewController(req, res, next) {
     await deleteReview(id);
     res.status(200).json({ message: "Inspección eliminada" });
   } catch (err) {
-    console.error(`[ReviewDelete] Error:${error}`);
-    res.status(500).json({ error: "Error al eliminar inspección" });
+    next(err);
   }
 }
