@@ -1,20 +1,8 @@
-import nodemailer from "nodemailer";
-import { EMAIL_CONFIG } from "../config/consts.js";
+import { Resend } from 'resend';
+import { EMAIL_CONFIG } from '../config/consts.js';
 
-// Create a single transporter instance and reuse it
-const transporter = nodemailer.createTransport({
-  host: EMAIL_CONFIG.host,
-  port: EMAIL_CONFIG.port,
-  secure: EMAIL_CONFIG.secure, // true for 465, false for other ports
-  auth: {
-    user: EMAIL_CONFIG.user,
-    pass: EMAIL_CONFIG.password,
-  },
-  // Add timeouts to prevent hanging
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 30000,
-});
+// Initialize Resend client once (reuse for all emails)
+const resend = new Resend(EMAIL_CONFIG.apiKey);
 
 export async function sendReviewEmail(to, reviewInfo, attachment) {
   const htmlContent = `
@@ -25,7 +13,7 @@ export async function sendReviewEmail(to, reviewInfo, attachment) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DataField - Informe de Inspección</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f3faff;">
+<body style="margin:0; padding:0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f3faff;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3faff; padding: 20px;">
     <tr>
       <td align="center">
@@ -66,7 +54,7 @@ export async function sendReviewEmail(to, reviewInfo, attachment) {
                       </tr>
                       <tr>
                         <td style="font-size: 16px; font-weight: 700; color: #002053;">
-                          ${reviewInfo.docCode || "N/A"}
+                          ${reviewInfo.docCode || 'N/A'}
                         </td>
                       </tr>
                     </table>
@@ -78,25 +66,25 @@ export async function sendReviewEmail(to, reviewInfo, attachment) {
                 <tr>
                   <td style="padding: 12px 0; border-bottom: 1px solid #c3c7ce;">
                     <span style="font-size: 13px; color: #43474d;">Proyecto:</span>
-                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.projectName || "N/A"}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.projectName || 'N/A'}</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding: 12px 0; border-bottom: 1px solid #c3c7ce;">
                     <span style="font-size: 13px; color: #43474d;">Fecha:</span>
-                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.date || "N/A"}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.date || 'N/A'}</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding: 12px 0; border-bottom: 1px solid #c3c7ce;">
                     <span style="font-size: 13px; color: #43474d;">Estado:</span>
-                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.status || "N/A"}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.status || 'N/A'}</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding: 12px 0;">
                     <span style="font-size: 13px; color: #43474d;">Formato:</span>
-                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px; text-transform: uppercase;">${reviewInfo.format || "N/A"}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px; text-transform: uppercase;">${reviewInfo.format || 'N/A'}</span>
                   </td>
                 </tr>
               </table>
@@ -128,20 +116,30 @@ export async function sendReviewEmail(to, reviewInfo, attachment) {
 </html>
 `;
 
-  const info = await transporter.sendMail({
-    from: EMAIL_CONFIG.from,
-    to,
-    subject: `Informe de Inspección - ${reviewInfo.docCode || "N/A"}`,
-    html: htmlContent,
-    attachments: attachment
-      ? [
-          {
-            filename: attachment.filename,
-            content: attachment.buffer,
-          },
-        ]
-      : [],
-  });
+  try {
+    // Send via Resend API (uses port 443, unblocked by Render)
+    const { data, error } = await resend.emails.send({
+      from: EMAIL_CONFIG.from,
+      to: [to],
+      subject: `Informe de Inspección - ${reviewInfo.docCode || 'N/A'}`,
+      html: htmlContent,
+      attachments: attachment ? [
+        {
+          filename: attachment.filename,
+          content: attachment.buffer.toString('base64'),
+        }
+      ] : [],
+    });
 
-  return info;
+    if (error) {
+      console.error('Resend API error:', error);
+      throw new Error(`Resend send failed: ${error.message}`);
+    }
+
+    console.log(`Email sent successfully to ${to}:`, data);
+    return data;
+  } catch (err) {
+    console.error(`Failed to send email to ${to}:`, err);
+    throw err;
+  }
 }
