@@ -18,6 +18,7 @@ export const EMAIL_CONFIG = {
   user: process.env.MAIL_USER,
   password: process.env.MAIL_PASS,
   from: process.env.MAIL_FROM || "DataField <onboarding@resend.dev>",
+  secure: Number(process.env.MAIL_PORT) === 465,
 };
 export const CLOUDINARY_CONFIG = {
   cloud_name: process.env.CLOUDINARY_NAME,

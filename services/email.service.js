@@ -1,16 +1,22 @@
-import nodemailer from 'nodemailer';
-import { EMAIL_CONFIG } from '../config/consts.js';
+import nodemailer from "nodemailer";
+import { EMAIL_CONFIG } from "../config/consts.js";
+
+// Create a single transporter instance and reuse it
+const transporter = nodemailer.createTransport({
+  host: EMAIL_CONFIG.host,
+  port: EMAIL_CONFIG.port,
+  secure: EMAIL_CONFIG.secure, // true for 465, false for other ports
+  auth: {
+    user: EMAIL_CONFIG.user,
+    pass: EMAIL_CONFIG.password,
+  },
+  // Add timeouts to prevent hanging
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 30000,
+});
 
 export async function sendReviewEmail(to, reviewInfo, attachment) {
-  const transporter = nodemailer.createTransport({
-    host: EMAIL_CONFIG.host,
-    port: EMAIL_CONFIG.port,
-    auth: {
-      user: EMAIL_CONFIG.user,
-      pass: EMAIL_CONFIG.password
-    }
-  });
-
   const htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -60,7 +66,7 @@ export async function sendReviewEmail(to, reviewInfo, attachment) {
                       </tr>
                       <tr>
                         <td style="font-size: 16px; font-weight: 700; color: #002053;">
-                          ${reviewInfo.docCode || 'N/A'}
+                          ${reviewInfo.docCode || "N/A"}
                         </td>
                       </tr>
                     </table>
@@ -72,25 +78,25 @@ export async function sendReviewEmail(to, reviewInfo, attachment) {
                 <tr>
                   <td style="padding: 12px 0; border-bottom: 1px solid #c3c7ce;">
                     <span style="font-size: 13px; color: #43474d;">Proyecto:</span>
-                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.projectName || 'N/A'}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.projectName || "N/A"}</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding: 12px 0; border-bottom: 1px solid #c3c7ce;">
                     <span style="font-size: 13px; color: #43474d;">Fecha:</span>
-                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.date || 'N/A'}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.date || "N/A"}</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding: 12px 0; border-bottom: 1px solid #c3c7ce;">
                     <span style="font-size: 13px; color: #43474d;">Estado:</span>
-                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.status || 'N/A'}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px;">${reviewInfo.status || "N/A"}</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding: 12px 0;">
                     <span style="font-size: 13px; color: #43474d;">Formato:</span>
-                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px; text-transform: uppercase;">${reviewInfo.format || 'N/A'}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #071e27; margin-left: 8px; text-transform: uppercase;">${reviewInfo.format || "N/A"}</span>
                   </td>
                 </tr>
               </table>
@@ -125,12 +131,16 @@ export async function sendReviewEmail(to, reviewInfo, attachment) {
   const info = await transporter.sendMail({
     from: EMAIL_CONFIG.from,
     to,
-    subject: `Informe de Inspección - ${reviewInfo.docCode || 'N/A'}`,
+    subject: `Informe de Inspección - ${reviewInfo.docCode || "N/A"}`,
     html: htmlContent,
-    attachments: attachment ? [{
-      filename: attachment.filename,
-      content: attachment.buffer
-    }] : []
+    attachments: attachment
+      ? [
+          {
+            filename: attachment.filename,
+            content: attachment.buffer,
+          },
+        ]
+      : [],
   });
 
   return info;

@@ -194,24 +194,39 @@ export async function sendReviewEmailController(req, res, next) {
       return res.status(404).json({ error: "Review not found" });
     }
 
-    const result = await exportReview(id, format);
-
-    const reviewInfo = {
-      docCode: review.docCode,
-      projectName: review.project?.name || "N/A",
-      date: review.reviewDate
-        ? new Date(review.reviewDate).toLocaleDateString("es-CL")
-        : "N/A",
-      status: statusSpanishMap[review.reviewStatus] || review.reviewStatus,
-      format: format || "pdf",
-    };
-
-    await sendReviewEmail(email, reviewInfo, {
-      filename: result.filename,
-      buffer: result.buffer,
+    // Return response immediately to avoid timeout
+    res.status(202).json({ 
+      message: "Email is being processed and will be sent shortly",
+      reviewId: id,
+      email: email
     });
 
-    res.status(200).json({ message: "Email sent successfully" });
+    // Process email in background (fire and forget)
+    setImmediate(async () => {
+      try {
+        const result = await exportReview(id, format);
+
+        const reviewInfo = {
+          docCode: review.docCode,
+          projectName: review.project?.name || "N/A",
+          date: review.reviewDate
+            ? new Date(review.reviewDate).toLocaleDateString("es-CL")
+            : "N/A",
+          status: statusSpanishMap[review.reviewStatus] || review.reviewStatus,
+          format: format || "pdf",
+        };
+
+        await sendReviewEmail(email, reviewInfo, {
+          filename: result.filename,
+          buffer: result.buffer,
+        });
+
+        console.log(`Email sent successfully to ${email} for review ${id}`);
+      } catch (emailErr) {
+        console.error(`Failed to send email to ${email} for review ${id}:`, emailErr);
+        // In production, you might want to save this to a retry queue or database
+      }
+    });
   } catch (err) {
     if (err.message === "Review not found") {
       return res.status(404).json({ error: "Review not found" });

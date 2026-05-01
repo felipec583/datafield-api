@@ -8,9 +8,19 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function fetchImageAsBuffer(url) {
-  const response = await fetch(url);
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  try {
+    const response = await fetch(url, { 
+      timeout: 10000 // 10 second timeout
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.error(`Error fetching image from ${url}:`, error.message);
+    throw error;
+  }
 }
 
 export async function getReviewById(id) {
@@ -274,84 +284,89 @@ export async function generatePdf(review) {
         y += 10;
       };
 
-      const addPhotoSection = async (photos) => {
-        if (!photos || photos.length === 0) return;
+  const addPhotoSection = async (photos) => {
+    if (!photos || photos.length === 0) return;
 
-        if (y > 650) {
-          doc.addPage();
-          y = 30;
+    if (y > 650) {
+      doc.addPage();
+      y = 30;
+    }
+
+    doc.rect(30, y, 535, 20).fill(darkBg);
+    doc
+      .fontSize(10)
+      .fillColor("#FFFFFF")
+      .font("Helvetica-Bold")
+      .text("7. REGISTRO FOTOGRÁFICO", 35, y + 5);
+    y += 25;
+
+    // Pre-fetch all images in parallel for better performance
+    const photoPromises = photos.map(async (photo) => {
+      const photoPath = photo.path;
+      const isUrl = photoPath.startsWith("http");
+      
+      if (isUrl) {
+        try {
+          const imgBuffer = await fetchImageAsBuffer(photoPath);
+          return { ...photo, imgBuffer, error: null };
+        } catch (imgErr) {
+          return { ...photo, imgBuffer: null, error: imgErr.message };
         }
+      } else if (fs.existsSync(photoPath)) {
+        return { ...photo, imgBuffer: photoPath, error: null };
+      } else {
+        return { ...photo, imgBuffer: null, error: "Image not found" };
+      }
+    });
 
-        doc.rect(30, y, 535, 20).fill(darkBg);
+    const processedPhotos = await Promise.all(photoPromises);
+
+    for (const photo of processedPhotos) {
+      if (y > 580) {
+        doc.addPage();
+        y = 30;
+      }
+
+      doc
+        .fontSize(9)
+        .fillColor(textColor)
+        .font("Helvetica-Bold")
+        .text(`Foto:`, 35, y + 4);
+      y += 18;
+
+      if (photo.description) {
         doc
-          .fontSize(10)
-          .fillColor("#FFFFFF")
-          .font("Helvetica-Bold")
-          .text("7. REGISTRO FOTOGRÁFICO", 35, y + 5);
-        y += 25;
+          .fontSize(8)
+          .fillColor(textColor)
+          .font("Helvetica")
+          .text(photo.description, 35, y, { width: 500 });
+        y += 14;
+      }
 
-        for (const photo of photos) {
-          if (y > 580) {
-            doc.addPage();
-            y = 30;
-          }
-
-          const photoPath = photo.path;
-
+      if (photo.imgBuffer && !photo.error) {
+        try {
+          doc.image(photo.imgBuffer, 35, y, { fit: [200, 150], align: "center" });
+          y += 155;
+        } catch (imgErr) {
           doc
-            .fontSize(9)
-            .fillColor(textColor)
-            .font("Helvetica-Bold")
-            .text(`Foto:`, 35, y + 4);
-          y += 18;
-
-          if (photo.description) {
-            doc
-              .fontSize(8)
-              .fillColor(textColor)
-              .font("Helvetica")
-              .text(photo.description, 35, y, { width: 500 });
-            y += 14;
-          }
-
-          const isUrl = photoPath.startsWith("http");
-
-          if (isUrl) {
-            try {
-              const imgBuffer = await fetchImageAsBuffer(photoPath);
-              doc.image(imgBuffer, 35, y, { fit: [200, 150], align: "center" });
-              y += 155;
-            } catch (imgErr) {
-              doc
-                .fontSize(8)
-                .fillColor("#73777E")
-                .text("[Imagen no disponible]", 35, y);
-              y += 20;
-            }
-          } else if (fs.existsSync(photoPath)) {
-            try {
-              doc.image(photoPath, 35, y, { fit: [200, 150], align: "center" });
-              y += 155;
-            } catch (imgErr) {
-              doc
-                .fontSize(8)
-                .fillColor("#73777E")
-                .text("[Imagen no disponible]", 35, y);
-              y += 20;
-            }
-          } else {
-            doc
-              .fontSize(8)
-              .fillColor("#73777E")
-              .text("[Imagen no encontrada]", 35, y);
-            y += 20;
-          }
-
-          y += 10;
+            .fontSize(8)
+            .fillColor("#73777E")
+            .text("[Imagen no disponible]", 35, y);
+          y += 20;
         }
+      } else {
+        doc
+          .fontSize(8)
+          .fillColor("#73777E")
+          .text(`[${photo.error || "Imagen no encontrada"}]`, 35, y);
+        y += 20;
+      }
 
-        y += 5;
-      };
+      y += 10;
+    }
+
+    y += 5;
+  };
 
       const formatDate = (date) =>
         date ? new Date(date).toLocaleDateString("es-CL") : "-";
